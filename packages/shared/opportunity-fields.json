@@ -1,0 +1,25 @@
+{
+  "coreFields": [
+    "keyword",
+    "category",
+    "infringement_risk",
+    "target_audience",
+    "competitor_links",
+    "top_features",
+    "profit_margin",
+    "price_range",
+    "search_trend_30_60_days",
+    "lifecycle_stage",
+    "average_rating",
+    "review_count",
+    "seasonality",
+    "westmonth_differentiation",
+    "catalog_sku_match",
+    "listing_difficulty",
+    "risk_level",
+    "opportunity_score",
+    "recommended_action"
+  ],
+  "scoreFormula": "Demand x Margin x Competition x Catalog Match x Risk Adjustment",
+  "confidenceLabels": ["high", "medium", "low", "pending_review"]
+}
