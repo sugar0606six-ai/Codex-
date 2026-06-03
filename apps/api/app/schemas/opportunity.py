@@ -50,6 +50,9 @@ class OpportunityDetail(OpportunityOut):
     differentiation: str | None
     keyword_id: int
     catalog_product_id: int | None
+    competitors: list[dict] = Field(default_factory=list)
+    trends: list[dict] = Field(default_factory=list)
+    profit: dict | None = None
 
 
 class NoteIn(BaseModel):

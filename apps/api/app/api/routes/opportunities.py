@@ -67,9 +67,7 @@ def _get_opportunity_or_404(db: Session, opportunity_id: int) -> Opportunity:
     return item
 
 
-@router.get("/{opportunity_id:int}/competitors")
-def competitors(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
-    opp = _get_opportunity_or_404(db, opportunity_id)
+def _competitor_rows(db: Session, opp: Opportunity) -> list[dict]:
     rows = (
         db.query(CompetitorLink, AmazonProduct)
         .outerjoin(AmazonProduct, AmazonProduct.id == CompetitorLink.amazon_product_id)
@@ -103,10 +101,8 @@ def competitors(opportunity_id: int, db: Session = Depends(get_db), _: User = De
     ]
 
 
-@router.get("/{opportunity_id:int}/trends")
-def trends(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
-    opp = _get_opportunity_or_404(db, opportunity_id)
-    return (
+def _trend_rows(db: Session, opp: Opportunity) -> list[TrendSnapshot]:
+    return list(
         db.query(TrendSnapshot)
         .filter(TrendSnapshot.keyword_id == opp.keyword_id, TrendSnapshot.window_days.in_([30, 60]))
         .order_by(TrendSnapshot.window_days.asc(), TrendSnapshot.created_at.desc())
@@ -114,9 +110,7 @@ def trends(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends
     )
 
 
-@router.get("/{opportunity_id:int}/profit")
-def profit(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
-    opp = _get_opportunity_or_404(db, opportunity_id)
+def _profit_row(db: Session, opp: Opportunity) -> ProfitCalculation | None:
     return (
         db.query(ProfitCalculation)
         .filter(ProfitCalculation.keyword_id == opp.keyword_id)
@@ -125,9 +119,53 @@ def profit(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends
     )
 
 
+@router.get("/{opportunity_id:int}/competitors")
+def competitors(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
+    opp = _get_opportunity_or_404(db, opportunity_id)
+    return _competitor_rows(db, opp)
+
+
+@router.get("/{opportunity_id:int}/trends")
+def trends(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
+    opp = _get_opportunity_or_404(db, opportunity_id)
+    return _trend_rows(db, opp)
+
+
+@router.get("/{opportunity_id:int}/profit")
+def profit(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
+    opp = _get_opportunity_or_404(db, opportunity_id)
+    return _profit_row(db, opp)
+
+
 @router.get("/{opportunity_id:int}", response_model=OpportunityDetail)
 def get_opportunity(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
-    return _get_opportunity_or_404(db, opportunity_id)
+    opp = _get_opportunity_or_404(db, opportunity_id)
+    return {
+        "id": opp.id,
+        "title": opp.title,
+        "category": opp.category,
+        "demand_score": opp.demand_score,
+        "margin_score": opp.margin_score,
+        "competition_score": opp.competition_score,
+        "catalog_match_score": opp.catalog_match_score,
+        "risk_score": opp.risk_score,
+        "opportunity_score": opp.opportunity_score,
+        "listing_difficulty": opp.listing_difficulty,
+        "risk_level": opp.risk_level,
+        "recommended_action": opp.recommended_action,
+        "confidence": opp.confidence,
+        "created_at": opp.created_at,
+        "target_audience": opp.target_audience,
+        "lifecycle_stage": opp.lifecycle_stage,
+        "seasonality": opp.seasonality,
+        "top_features": opp.top_features,
+        "differentiation": opp.differentiation,
+        "keyword_id": opp.keyword_id,
+        "catalog_product_id": opp.catalog_product_id,
+        "competitors": _competitor_rows(db, opp),
+        "trends": _trend_rows(db, opp),
+        "profit": _profit_row(db, opp),
+    }
 
 
 @router.get("/{opportunity_id:int}/evidence")

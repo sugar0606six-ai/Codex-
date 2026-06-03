@@ -31,6 +31,11 @@ type Profit = {
   confidence: string;
 };
 type Trend = { id: number; source: string; window_days: number; trend_score: number; direction: string; evidence_url: string | null; confidence: string };
+type OpportunityDetail = Opportunity & {
+  competitors?: Competitor[];
+  profit?: Profit | null;
+  trends?: Trend[];
+};
 
 export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
@@ -41,11 +46,13 @@ export default function ProductDetailPage() {
   const [trends, setTrends] = useState<Trend[]>([]);
 
   useEffect(() => {
-    api<Opportunity>(`/opportunities/${params.id}`).then(setItem);
+    api<OpportunityDetail>(`/opportunities/${params.id}`).then((detail) => {
+      setItem(detail);
+      setCompetitors(detail.competitors ?? []);
+      setProfit(detail.profit ?? null);
+      setTrends(detail.trends ?? []);
+    });
     api<Evidence[]>(`/opportunities/${params.id}/evidence`).then(setEvidence);
-    api<Competitor[]>(`/opportunities/${params.id}/competitors`).then(setCompetitors);
-    api<Profit | null>(`/opportunities/${params.id}/profit`).then(setProfit);
-    api<Trend[]>(`/opportunities/${params.id}/trends`).then(setTrends);
   }, [params.id]);
 
   if (!item) return <Shell><PageTitle title="加载中" subtitle="正在读取机会详情。" /></Shell>;
