@@ -36,7 +36,20 @@ def startup() -> None:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": settings.app_name}
+    return {
+        "status": "ok",
+        "service": settings.app_name,
+        "version": "health-live-source-diagnostics-2026-06-03",
+        "api_prefix": settings.api_prefix,
+        "enable_live_sources": settings.enable_live_sources,
+        "amazon_data_provider": settings.amazon_data_provider,
+        "rainforest_key_configured": bool(settings.rainforest_api_key),
+        "rainforest_ready": bool(
+            settings.enable_live_sources
+            and settings.amazon_data_provider.lower().strip() == "rainforest"
+            and settings.rainforest_api_key
+        ),
+    }
 
 
 for router in routers:
