@@ -2,7 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api.deps import current_user
 from app.core.database import get_db
-from app.models.entities import CompetitorLink, Opportunity, ProfitCalculation, SavedOpportunity, SourceEvidence, TrendSnapshot, User, UserNote
+from app.models.entities import (
+    AmazonProduct,
+    CompetitorLink,
+    Opportunity,
+    ProfitCalculation,
+    SavedOpportunity,
+    SourceEvidence,
+    TrendSnapshot,
+    User,
+    UserNote,
+)
 from app.schemas.opportunity import KeywordSearchRequest, NoteIn, OpportunityDetail, OpportunityOut, SaveOpportunityIn
 from app.services.analyzer import OpportunityAnalyzer
 
@@ -37,41 +47,63 @@ def list_opportunities(
     return query.order_by(Opportunity.opportunity_score.desc(), Opportunity.created_at.desc()).limit(300).all()
 
 
-@router.get("/{opportunity_id}", response_model=OpportunityDetail)
-def get_opportunity(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
+def _get_opportunity_or_404(db: Session, opportunity_id: int) -> Opportunity:
     item = db.get(Opportunity, opportunity_id)
     if not item:
         raise HTTPException(status_code=404, detail="Opportunity not found")
     return item
 
 
-@router.get("/{opportunity_id}/evidence")
-def evidence(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
-    opp = db.get(Opportunity, opportunity_id)
-    if not opp:
-        return []
-    return db.query(SourceEvidence).filter(SourceEvidence.entity_type == "keyword", SourceEvidence.entity_id == opp.keyword_id).all()
-
-
 @router.get("/{opportunity_id}/competitors")
 def competitors(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
-    opp = db.get(Opportunity, opportunity_id)
-    if not opp:
-        raise HTTPException(status_code=404, detail="Opportunity not found")
-    return (
-        db.query(CompetitorLink)
+    opp = _get_opportunity_or_404(db, opportunity_id)
+    rows = (
+        db.query(CompetitorLink, AmazonProduct)
+        .outerjoin(AmazonProduct, AmazonProduct.id == CompetitorLink.amazon_product_id)
         .filter(CompetitorLink.keyword_id == opp.keyword_id)
         .order_by(CompetitorLink.review_count.desc().nullslast(), CompetitorLink.rating.desc().nullslast())
         .limit(10)
+        .all()
+    )
+    return [
+        {
+            "id": link.id,
+            "amazon_product_id": link.amazon_product_id,
+            "asin": link.asin or (product.asin if product else None),
+            "title": link.title or (product.title if product else None),
+            "url": link.url or (product.listing_url if product else None),
+            "price": link.price if link.price is not None else (product.price if product else None),
+            "rating": link.rating if link.rating is not None else (product.rating if product else None),
+            "review_count": link.review_count if link.review_count is not None else (product.review_count if product else None),
+            "estimated_monthly_sales": (
+                link.estimated_monthly_sales
+                if link.estimated_monthly_sales is not None
+                else (product.estimated_monthly_sales if product else None)
+            ),
+            "image_url": link.image_url or (product.image_url if product else None),
+            "differentiation": link.differentiation,
+            "data_source": product.data_source if product else None,
+            "confidence": product.confidence if product else None,
+            "created_at": link.created_at,
+        }
+        for link, product in rows
+    ]
+
+
+@router.get("/{opportunity_id}/trends")
+def trends(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
+    opp = _get_opportunity_or_404(db, opportunity_id)
+    return (
+        db.query(TrendSnapshot)
+        .filter(TrendSnapshot.keyword_id == opp.keyword_id, TrendSnapshot.window_days.in_([30, 60]))
+        .order_by(TrendSnapshot.window_days.asc(), TrendSnapshot.created_at.desc())
         .all()
     )
 
 
 @router.get("/{opportunity_id}/profit")
 def profit(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
-    opp = db.get(Opportunity, opportunity_id)
-    if not opp:
-        raise HTTPException(status_code=404, detail="Opportunity not found")
+    opp = _get_opportunity_or_404(db, opportunity_id)
     return (
         db.query(ProfitCalculation)
         .filter(ProfitCalculation.keyword_id == opp.keyword_id)
@@ -80,17 +112,15 @@ def profit(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends
     )
 
 
-@router.get("/{opportunity_id}/trends")
-def trends(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
-    opp = db.get(Opportunity, opportunity_id)
-    if not opp:
-        raise HTTPException(status_code=404, detail="Opportunity not found")
-    return (
-        db.query(TrendSnapshot)
-        .filter(TrendSnapshot.keyword_id == opp.keyword_id)
-        .order_by(TrendSnapshot.window_days.asc(), TrendSnapshot.created_at.desc())
-        .all()
-    )
+@router.get("/{opportunity_id}", response_model=OpportunityDetail)
+def get_opportunity(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
+    return _get_opportunity_or_404(db, opportunity_id)
+
+
+@router.get("/{opportunity_id}/evidence")
+def evidence(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
+    opp = _get_opportunity_or_404(db, opportunity_id)
+    return db.query(SourceEvidence).filter(SourceEvidence.entity_type == "keyword", SourceEvidence.entity_id == opp.keyword_id).all()
 
 
 @router.post("/{opportunity_id}/notes")
