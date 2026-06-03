@@ -47,6 +47,19 @@ def list_opportunities(
     return query.order_by(Opportunity.opportunity_score.desc(), Opportunity.created_at.desc()).limit(300).all()
 
 
+@router.get("/_routes")
+def opportunity_routes(_: User = Depends(current_user)):
+    return {
+        "routes": [
+            "/api/v1/opportunities/{id}",
+            "/api/v1/opportunities/{id}/evidence",
+            "/api/v1/opportunities/{id}/competitors",
+            "/api/v1/opportunities/{id}/trends",
+            "/api/v1/opportunities/{id}/profit",
+        ]
+    }
+
+
 def _get_opportunity_or_404(db: Session, opportunity_id: int) -> Opportunity:
     item = db.get(Opportunity, opportunity_id)
     if not item:
@@ -54,7 +67,7 @@ def _get_opportunity_or_404(db: Session, opportunity_id: int) -> Opportunity:
     return item
 
 
-@router.get("/{opportunity_id}/competitors")
+@router.get("/{opportunity_id:int}/competitors")
 def competitors(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
     opp = _get_opportunity_or_404(db, opportunity_id)
     rows = (
@@ -90,7 +103,7 @@ def competitors(opportunity_id: int, db: Session = Depends(get_db), _: User = De
     ]
 
 
-@router.get("/{opportunity_id}/trends")
+@router.get("/{opportunity_id:int}/trends")
 def trends(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
     opp = _get_opportunity_or_404(db, opportunity_id)
     return (
@@ -101,7 +114,7 @@ def trends(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends
     )
 
 
-@router.get("/{opportunity_id}/profit")
+@router.get("/{opportunity_id:int}/profit")
 def profit(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
     opp = _get_opportunity_or_404(db, opportunity_id)
     return (
@@ -112,18 +125,18 @@ def profit(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends
     )
 
 
-@router.get("/{opportunity_id}", response_model=OpportunityDetail)
+@router.get("/{opportunity_id:int}", response_model=OpportunityDetail)
 def get_opportunity(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
     return _get_opportunity_or_404(db, opportunity_id)
 
 
-@router.get("/{opportunity_id}/evidence")
+@router.get("/{opportunity_id:int}/evidence")
 def evidence(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
     opp = _get_opportunity_or_404(db, opportunity_id)
     return db.query(SourceEvidence).filter(SourceEvidence.entity_type == "keyword", SourceEvidence.entity_id == opp.keyword_id).all()
 
 
-@router.post("/{opportunity_id}/notes")
+@router.post("/{opportunity_id:int}/notes")
 def add_note(opportunity_id: int, payload: NoteIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
     note = UserNote(opportunity_id=opportunity_id, user_id=user.id, body=payload.body)
     db.add(note)
@@ -131,7 +144,7 @@ def add_note(opportunity_id: int, payload: NoteIn, db: Session = Depends(get_db)
     return {"id": note.id, "body": note.body}
 
 
-@router.post("/{opportunity_id}/save")
+@router.post("/{opportunity_id:int}/save")
 def save(opportunity_id: int, payload: SaveOpportunityIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
     saved = (
         db.query(SavedOpportunity)
