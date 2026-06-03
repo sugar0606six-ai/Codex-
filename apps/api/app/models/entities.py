@@ -63,6 +63,11 @@ class AmazonProduct(Base, TimestampMixin):
     bullets: Mapped[list | None] = mapped_column(JSON)
     aplus_summary: Mapped[str | None] = mapped_column(Text)
     variants: Mapped[dict | None] = mapped_column(JSON)
+    estimated_monthly_sales: Mapped[float | None] = mapped_column(Float)
+    image_url: Mapped[str | None] = mapped_column(String(1000))
+    lifecycle_stage: Mapped[str | None] = mapped_column(String(80))
+    feature_tags: Mapped[list | None] = mapped_column(JSON)
+    data_source: Mapped[str | None] = mapped_column(String(120))
     confidence: Mapped[str] = mapped_column(String(50), default="low")
 
 
@@ -91,6 +96,10 @@ class CompetitorLink(Base, TimestampMixin):
     price: Mapped[float | None] = mapped_column(Float)
     rating: Mapped[float | None] = mapped_column(Float)
     review_count: Mapped[int | None] = mapped_column(Integer)
+    asin: Mapped[str | None] = mapped_column(String(30))
+    estimated_monthly_sales: Mapped[float | None] = mapped_column(Float)
+    image_url: Mapped[str | None] = mapped_column(String(1000))
+    differentiation: Mapped[str | None] = mapped_column(Text)
 
 
 class RiskAssessment(Base, TimestampMixin):

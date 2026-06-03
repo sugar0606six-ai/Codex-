@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.api.deps import current_user
 from app.core.database import get_db
-from app.models.entities import Opportunity, SavedOpportunity, SourceEvidence, User, UserNote
+from app.models.entities import CompetitorLink, Opportunity, ProfitCalculation, SavedOpportunity, SourceEvidence, TrendSnapshot, User, UserNote
 from app.schemas.opportunity import KeywordSearchRequest, NoteIn, OpportunityDetail, OpportunityOut, SaveOpportunityIn
 from app.services.analyzer import OpportunityAnalyzer
 
@@ -51,6 +51,46 @@ def evidence(opportunity_id: int, db: Session = Depends(get_db), _: User = Depen
     if not opp:
         return []
     return db.query(SourceEvidence).filter(SourceEvidence.entity_type == "keyword", SourceEvidence.entity_id == opp.keyword_id).all()
+
+
+@router.get("/{opportunity_id}/competitors")
+def competitors(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
+    opp = db.get(Opportunity, opportunity_id)
+    if not opp:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+    return (
+        db.query(CompetitorLink)
+        .filter(CompetitorLink.keyword_id == opp.keyword_id)
+        .order_by(CompetitorLink.review_count.desc().nullslast(), CompetitorLink.rating.desc().nullslast())
+        .limit(10)
+        .all()
+    )
+
+
+@router.get("/{opportunity_id}/profit")
+def profit(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
+    opp = db.get(Opportunity, opportunity_id)
+    if not opp:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+    return (
+        db.query(ProfitCalculation)
+        .filter(ProfitCalculation.keyword_id == opp.keyword_id)
+        .order_by(ProfitCalculation.created_at.desc())
+        .first()
+    )
+
+
+@router.get("/{opportunity_id}/trends")
+def trends(opportunity_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
+    opp = db.get(Opportunity, opportunity_id)
+    if not opp:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+    return (
+        db.query(TrendSnapshot)
+        .filter(TrendSnapshot.keyword_id == opp.keyword_id)
+        .order_by(TrendSnapshot.window_days.asc(), TrendSnapshot.created_at.desc())
+        .all()
+    )
 
 
 @router.post("/{opportunity_id}/notes")

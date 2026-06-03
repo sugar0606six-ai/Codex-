@@ -33,27 +33,33 @@ class OpportunityAnalyzer:
         trend_data = await self.trends.search(keyword, category)
         catalog_data = self.catalog.match(keyword)
 
-        amazon_product = self._store_amazon(db, amazon_data["products"][0])
-        db.add(
-            CompetitorLink(
-                keyword_id=kw.id,
-                amazon_product_id=amazon_product.id,
-                url=amazon_product.listing_url or "https://www.amazon.com",
-                title=amazon_product.title,
-                price=amazon_product.price,
-                rating=amazon_product.rating,
-                review_count=amazon_product.review_count,
+        amazon_products = [self._store_amazon(db, product) for product in amazon_data["products"][:5]]
+        primary_product = amazon_products[0]
+        for product in amazon_products:
+            db.add(
+                CompetitorLink(
+                    keyword_id=kw.id,
+                    amazon_product_id=product.id,
+                    url=product.listing_url or "https://www.amazon.com",
+                    title=product.title,
+                    price=product.price,
+                    rating=product.rating,
+                    review_count=product.review_count,
+                    asin=product.asin,
+                    estimated_monthly_sales=product.estimated_monthly_sales,
+                    image_url=product.image_url,
+                    differentiation=self._competitor_gap(product),
+                )
             )
-        )
         for item in trend_data["snapshots"]:
             db.add(TrendSnapshot(keyword_id=kw.id, **item))
         for evidence in amazon_data["evidence"]:
             db.add(SourceEvidence(entity_type="keyword", entity_id=kw.id, **evidence))
 
         demand = round(sum(item["trend_score"] for item in trend_data["snapshots"]) / len(trend_data["snapshots"]), 2)
-        competition = self._competition_score(amazon_product.review_count, amazon_product.rating)
+        competition = self._competition_score(amazon_products)
         risk = self._risk_score(keyword)
-        selling_price = amazon_product.price or 19.99
+        selling_price = self._mainstream_price(amazon_products) or primary_product.price or 19.99
         product_cost = round(selling_price * 0.32, 2)
         profit = self._profit(keyword_id=kw.id, selling_price=selling_price, product_cost=product_cost)
         margin_score = margin_score_from_rate(profit.margin_rate)
@@ -87,11 +93,11 @@ class OpportunityAnalyzer:
             keyword_id=kw.id,
             catalog_product_id=None,
             title=keyword.strip().title(),
-            category=category or amazon_product.category,
+            category=category or primary_product.category,
             target_audience=self._audience(keyword),
-            lifecycle_stage="增长期" if demand >= 65 else "验证期",
+            lifecycle_stage=primary_product.lifecycle_stage or ("增长期" if demand >= 65 else "验证期"),
             seasonality="Q4/Prime Day 需复核" if "car" not in keyword.lower() else "全年，冬夏车品有波峰",
-            top_features=["可套装化", "轻小件优先", "差异化包装和说明书", "评论痛点驱动卖点"],
+            top_features=self._top_features(amazon_products),
             differentiation="结合 WestMonth 现货 SKU 做颜色、套装、配件或包装差异化。",
             demand_score=demand,
             margin_score=margin_score,
@@ -116,8 +122,11 @@ class OpportunityAnalyzer:
         db.flush()
         return product
 
-    def _competition_score(self, review_count: int | None, rating: float | None) -> float:
-        reviews = review_count or 0
+    def _competition_score(self, products: list[AmazonProduct]) -> float:
+        reviews = sum((product.review_count or 0) for product in products) / max(1, len(products))
+        rating = sum((product.rating or 0) for product in products if product.rating) / max(
+            1, len([product for product in products if product.rating])
+        )
         base = 82
         if reviews > 3000:
             base -= 34
@@ -128,6 +137,33 @@ class OpportunityAnalyzer:
         if rating and rating >= 4.6:
             base -= 8
         return max(20, min(95, base))
+
+    def _mainstream_price(self, products: list[AmazonProduct]) -> float | None:
+        prices = sorted(product.price for product in products if product.price and product.price > 0)
+        if not prices:
+            return None
+        middle = len(prices) // 2
+        if len(prices) % 2:
+            return round(prices[middle], 2)
+        return round((prices[middle - 1] + prices[middle]) / 2, 2)
+
+    def _competitor_gap(self, product: AmazonProduct) -> str:
+        tags = product.feature_tags or []
+        if "套装" in tags or "多件装" in tags:
+            return "竞品强调套装/多件装，WestMonth 可从组合数量、配件和包装说明差异化。"
+        if product.review_count and product.review_count > 1000:
+            return "竞品评论量高，需避开同质化卖点，优先寻找轻量改款或细分场景。"
+        return "竞品仍有验证空间，可重点比较价格带、评分和功能标签。"
+
+    def _top_features(self, products: list[AmazonProduct]) -> list[str]:
+        tags: list[str] = []
+        for product in products:
+            tags.extend(product.feature_tags or [])
+        unique = []
+        for tag in tags + ["可套装化", "轻小件优先", "差异化包装和说明书"]:
+            if tag not in unique:
+                unique.append(tag)
+        return unique[:6]
 
     def _risk_score(self, keyword: str) -> float:
         lowered = keyword.lower()

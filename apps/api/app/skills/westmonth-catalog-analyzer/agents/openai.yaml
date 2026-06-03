@@ -1,0 +1,4 @@
+interface:
+  display_name: "WestMonth Catalog Analyzer"
+  short_description: "Analyze WestMonth catalog products for Amazon opportunities."
+  default_prompt: "Use $westmonth-catalog-analyzer to find matching WestMonth catalog products for an Amazon opportunity."

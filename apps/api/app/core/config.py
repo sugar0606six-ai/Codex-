@@ -10,9 +10,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 720
     openai_api_key: str | None = None
+    amazon_data_provider: str = "stub"
+    rainforest_api_key: str | None = None
+    rainforest_base_url: str = "https://api.rainforestapi.com/request"
+    rainforest_max_results: int = 5
     admin_email: str = "admin@westmonth.local"
     admin_password: str = "ChangeMe123!"
-    skill_catalog_tool_path: str = r"C:\Users\205129\.codex\skills\westmonth-catalog-analyzer\scripts\catalog_tool.py"
+    skill_catalog_tool_path: str = "app/skills/westmonth-catalog-analyzer/scripts/catalog_tool.py"
     enable_live_sources: bool = False
     cors_origins: str = "http://localhost:3000"
 

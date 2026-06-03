@@ -7,15 +7,45 @@ import { api, Opportunity, scoreColor } from "@/lib/api";
 import { PageTitle, Shell, Stat } from "@/components/Shell";
 
 type Evidence = { id: number; source_name: string; source_url: string | null; summary: string; confidence: string };
+type Competitor = {
+  id: number;
+  asin: string | null;
+  title: string | null;
+  url: string;
+  price: number | null;
+  rating: number | null;
+  review_count: number | null;
+  estimated_monthly_sales: number | null;
+  image_url: string | null;
+  differentiation: string | null;
+};
+type Profit = {
+  selling_price: number;
+  product_cost: number | null;
+  referral_fee: number;
+  fba_fee: number;
+  inbound_shipping: number;
+  ppc_buffer: number;
+  net_margin: number;
+  margin_rate: number;
+  confidence: string;
+};
+type Trend = { id: number; source: string; window_days: number; trend_score: number; direction: string; evidence_url: string | null; confidence: string };
 
 export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
   const [item, setItem] = useState<Opportunity | null>(null);
   const [evidence, setEvidence] = useState<Evidence[]>([]);
+  const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const [profit, setProfit] = useState<Profit | null>(null);
+  const [trends, setTrends] = useState<Trend[]>([]);
 
   useEffect(() => {
     api<Opportunity>(`/opportunities/${params.id}`).then(setItem);
     api<Evidence[]>(`/opportunities/${params.id}/evidence`).then(setEvidence);
+    api<Competitor[]>(`/opportunities/${params.id}/competitors`).then(setCompetitors);
+    api<Profit | null>(`/opportunities/${params.id}/profit`).then(setProfit);
+    api<Trend[]>(`/opportunities/${params.id}/trends`).then(setTrends);
   }, [params.id]);
 
   if (!item) return <Shell><PageTitle title="加载中" subtitle="正在读取机会详情。" /></Shell>;
@@ -62,6 +92,74 @@ export default function ProductDetailPage() {
         </div>
       </section>
       <section className="mt-5 rounded-md border border-line bg-white p-4">
+        <h2 className="text-sm font-semibold">Amazon US 竞品对比</h2>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[980px] text-left text-sm">
+            <thead className="bg-panel text-xs uppercase text-slate-500">
+              <tr>
+                <th className="px-3 py-2">竞品</th>
+                <th className="px-3 py-2">ASIN</th>
+                <th className="px-3 py-2">价格</th>
+                <th className="px-3 py-2">评分</th>
+                <th className="px-3 py-2">评论</th>
+                <th className="px-3 py-2">预估月销</th>
+                <th className="px-3 py-2">差异化判断</th>
+              </tr>
+            </thead>
+            <tbody>
+              {competitors.map((row) => (
+                <tr key={row.id} className="border-t border-line align-top">
+                  <td className="px-3 py-3">
+                    <a className="font-medium text-brand" href={row.url} target="_blank">{row.title ?? "Untitled"}</a>
+                  </td>
+                  <td className="px-3 py-3">{row.asin ?? "待确认"}</td>
+                  <td className="px-3 py-3">{money(row.price)}</td>
+                  <td className="px-3 py-3">{row.rating ?? "待确认"}</td>
+                  <td className="px-3 py-3">{row.review_count ?? "待确认"}</td>
+                  <td className="px-3 py-3">{row.estimated_monthly_sales ?? "待确认"}</td>
+                  <td className="px-3 py-3 text-slate-600">{row.differentiation ?? "待确认"}</td>
+                </tr>
+              ))}
+              {!competitors.length ? (
+                <tr><td className="px-3 py-4 text-slate-500" colSpan={7}>暂无竞品数据，请先重新运行关键词分析。</td></tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section className="mt-5 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-md border border-line bg-white p-4">
+          <h2 className="text-sm font-semibold">利润拆解</h2>
+          {profit ? (
+            <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+              <Field label="主流售价" value={money(profit.selling_price)} />
+              <Field label="产品成本" value={money(profit.product_cost)} />
+              <Field label="平台佣金" value={money(profit.referral_fee)} />
+              <Field label="FBA 费用" value={money(profit.fba_fee)} />
+              <Field label="入仓运费" value={money(profit.inbound_shipping)} />
+              <Field label="PPC buffer" value={money(profit.ppc_buffer)} />
+              <Field label="单件净利润" value={money(profit.net_margin)} />
+              <Field label="利润率" value={`${Math.round(profit.margin_rate * 1000) / 10}% · ${profit.confidence}`} />
+            </dl>
+          ) : <p className="mt-3 text-sm text-slate-500">暂无利润数据。</p>}
+        </div>
+        <div className="rounded-md border border-line bg-white p-4">
+          <h2 className="text-sm font-semibold">关键词趋势</h2>
+          <div className="mt-3 divide-y divide-line">
+            {trends.map((row) => (
+              <div key={row.id} className="flex items-center justify-between py-3 text-sm">
+                <div>
+                  <div className="font-medium">{row.source} · {row.window_days} 天</div>
+                  <div className="text-slate-500">{row.direction} · {row.confidence}</div>
+                </div>
+                <div className="text-lg font-semibold">{row.trend_score}</div>
+              </div>
+            ))}
+            {!trends.length ? <p className="py-3 text-sm text-slate-500">暂无趋势数据。</p> : null}
+          </div>
+        </div>
+      </section>
+      <section className="mt-5 rounded-md border border-line bg-white p-4">
         <h2 className="text-sm font-semibold">证据与来源</h2>
         <div className="mt-3 divide-y divide-line">
           {evidence.map((row) => (
@@ -86,4 +184,9 @@ function Field({ label, value, danger }: { label: string; value?: string | null;
       <dd className={`mt-1 ${danger ? "font-semibold text-danger" : "text-slate-800"}`}>{value ?? "待确认"}</dd>
     </div>
   );
+}
+
+function money(value?: number | null) {
+  if (value === null || value === undefined) return "待确认";
+  return `$${value.toFixed(2)}`;
 }
