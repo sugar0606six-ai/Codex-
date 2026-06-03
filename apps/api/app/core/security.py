@@ -1,18 +1,15 @@
 from datetime import datetime, timedelta, timezone
 from jose import jwt
-from passlib.context import CryptContext
+from passlib.hash import pbkdf2_sha256
 from app.core.config import get_settings
 
 
-pwd_context = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="auto")
-
-
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return pbkdf2_sha256.hash(password)
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return pwd_context.verify(password, hashed)
+    return pbkdf2_sha256.verify(password, hashed)
 
 
 def create_access_token(subject: str, role: str) -> str:
