@@ -1,6 +1,7 @@
 from datetime import datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from app.adapters.amazon_frontend import AmazonFrontendAdapter
 from app.api.deps import current_user
 from app.core.database import get_db
 from app.models.entities import SyncJob, User
@@ -19,3 +20,8 @@ def schedule_job(job_type: str, db: Session = Depends(get_db), _: User = Depends
     db.add(job)
     db.commit()
     return {"id": job.id, "status": job.status}
+
+
+@router.get("/live-source-status")
+async def live_source_status(_: User = Depends(current_user)):
+    return await AmazonFrontendAdapter().healthcheck()

@@ -26,6 +26,36 @@ class AmazonFrontendAdapter(SourceAdapter):
                 return fallback
         return self._fallback(keyword, category)
 
+    def status(self) -> dict:
+        settings = get_settings()
+        return {
+            "enable_live_sources": settings.enable_live_sources,
+            "amazon_data_provider": settings.amazon_data_provider,
+            "rainforest_key_configured": bool(settings.rainforest_api_key),
+            "rainforest_base_url": settings.rainforest_base_url,
+            "rainforest_max_results": settings.rainforest_max_results,
+            "will_use_rainforest": bool(
+                settings.enable_live_sources
+                and settings.amazon_data_provider.lower().strip() == "rainforest"
+                and settings.rainforest_api_key
+            ),
+        }
+
+    async def healthcheck(self) -> dict:
+        status = self.status()
+        if not status["will_use_rainforest"]:
+            return {**status, "provider_check": "skipped", "message": "Rainforest is not enabled by backend settings."}
+        try:
+            result = await self._search_rainforest("car organizer", "Automotive")
+            return {
+                **status,
+                "provider_check": "ok",
+                "sample_products": len(result.get("products", [])),
+                "first_title": result.get("products", [{}])[0].get("title"),
+            }
+        except Exception as exc:  # pragma: no cover - external provider boundary
+            return {**status, "provider_check": "failed", "message": str(exc)}
+
     async def _search_rainforest(self, keyword: str, category: str | None = None) -> dict:
         import httpx
 
